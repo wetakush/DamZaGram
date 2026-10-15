@@ -6,7 +6,7 @@
 
 pkgname=damzagram
 pkgver=7.2.9
-pkgrel=1
+pkgrel=2
 pkgdesc="Telegram client with a JavaScript plugin system (AyuGram fork) by @wetakush"
 arch=('x86_64')
 url="https://github.com/wetakush/DamZaGram"

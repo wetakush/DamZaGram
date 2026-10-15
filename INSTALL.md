@@ -1,13 +1,25 @@
 # Установка DamZaGram
 
-Коротко по дистрибутивам. Репозиторий: https://github.com/wetakush/DamZaGram
+Коротко по системам. Репозиторий: https://github.com/wetakush/DamZaGram
+Готовые сборки: https://github.com/wetakush/DamZaGram/releases
+
+## Windows 10 (1903+) и 11, x64
+
+Скачай `DamZaGram-<версия>-windows-x64-debug.zip` со страницы релизов,
+распакуй куда угодно и запусти `DamZaGram.exe`. Доустанавливать ничего не
+надо: Qt и рантайм уже внутри exe.
+
+Пока это Debug-сборка: exe большой и работает медленнее релизной. Собирается
+она в GitHub Actions (`.github/workflows/windows.yml`).
 
 ## Arch Linux и производные (Manjaro, EndeavourOS, CachyOS)
 
 ### Готовый пакет
 
+Скачай `damzagram-*.pkg.tar.zst` со страницы релизов и поставь:
+
 ```bash
-sudo pacman -U damzagram-7.2.9-1-x86_64.pkg.tar.zst
+sudo pacman -U damzagram-7.2.9-2-x86_64.pkg.tar.zst
 ```
 
 Пакет ставит `/usr/bin/DamZaGram`, ярлык в меню приложений, иконки и
