@@ -195,16 +195,19 @@ bool TryLocalBuyGift(
 	const auto session = &recipient->session();
 	const auto i = GiftsBySession.find(session);
 	if (i == end(GiftsBySession) || !i->second.localBuy) {
-		return false;
-	} else if (!recipient->isSelf()) {
-		return false; // a local buy can only flex on your own profile
+		return false; // local buy off: let the real send run
 	}
-	// Spend the (possibly faked) Stars balance locally.
+	// Spend the (possibly faked) Stars balance locally, never hitting the
+	// server (so it works even with a real zero balance). A gift sent to
+	// yourself also lands on your own profile; sending to anyone else is a
+	// purely local "sent" — nothing reaches them.
 	auto &credits = session->credits();
 	const auto have = credits.balance().whole();
 	credits.apply(CreditsAmount(std::max<int64>(0, have - gift.stars)));
-	const auto slug = gift.unique ? gift.unique->slug : QString();
-	AddGift(session, gift, slug);
+	if (recipient->isSelf()) {
+		const auto slug = gift.unique ? gift.unique->slug : QString();
+		AddGift(session, gift, slug);
+	}
 	return true;
 }
 
