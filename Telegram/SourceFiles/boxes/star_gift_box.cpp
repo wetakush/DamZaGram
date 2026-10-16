@@ -75,6 +75,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "main/main_session.h"
 #include "menu/gift_resale_filter.h"
 #include "payments/payments_form.h"
+#include "damza/plugins/plugins.h"
 #include "payments/payments_checkout_process.h"
 #include "payments/payments_non_panel_process.h"
 #include "settings/sections/settings_credits.h"
@@ -1224,6 +1225,13 @@ void SendGift(
 			Payments::CheckoutProcess::Start(std::move(invoice), done);
 		}
 	}, [&](const GiftTypeStars &gift) {
+		// DamZaGram: when dzg.gifts.localBuy is on, a gift sent to yourself
+		// spends the local (faked) Stars balance and hangs the gift on your
+		// own profile instead of hitting the server.
+		if (Damza::Plugins::TryLocalBuyGift(peer, gift.info)) {
+			done(Payments::CheckoutResult::Paid);
+			return;
+		}
 		Payments::CheckoutProcess::Start(Payments::InvoiceStarGift{
 			.giftId = gift.info.id,
 			.randomId = details.randomId,

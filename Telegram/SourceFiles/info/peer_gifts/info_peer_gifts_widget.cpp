@@ -21,6 +21,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_session.h"
 #include "data/data_user.h"
 #include "info/peer_gifts/info_peer_gifts_collections.h"
+#include "damza/plugins/plugins.h"
 #include "info/peer_gifts/info_peer_gifts_common.h"
 #include "info/info_controller.h"
 #include "info/info_memento.h"
@@ -216,6 +217,7 @@ private:
 	void loadCollections();
 	void loadMore();
 	void loaded(const MTPpayments_SavedStarGifts &result);
+	void injectProfileGifts(); // DamZaGram: fake NFT gifts on your own profile.
 	void markInCollection(const Data::SavedStarGift &gift);
 	void refreshButtons();
 	void validateButtons();
@@ -366,6 +368,13 @@ InnerWidget::InnerWidget(
 	for (const auto &entry : _all.list) {
 		markInCollection(entry.gift);
 	}
+
+	// DamZaGram: keep injected fake profile gifts in sync live.
+	Damza::Plugins::ProfileGiftsUpdates(
+		&_peer->session()
+	) | rpl::on_next([=] {
+		injectProfileGifts();
+	}, lifetime());
 
 	loadCollections();
 
@@ -739,9 +748,42 @@ void InnerWidget::loaded(const MTPpayments_SavedStarGifts &result) {
 	}
 	refreshButtons();
 	refreshAbout();
+	injectProfileGifts();
 
 	if (hasUnique) {
 		Ui::PreloadUniqueGiftResellPrices(&_peer->session());
+	}
+}
+
+void InnerWidget::injectProfileGifts() {
+	// Prepend a plugin's fake NFT gifts to your OWN default gifts view. They
+	// are real resolved gift objects, so they open and behave like real ones.
+	if (!_peer->isSelf()
+		|| _addingToCollectionId
+		|| _descriptor.current().collectionId != 0) {
+		return;
+	}
+	constexpr auto kFakeBase = int64(2000000000);
+	const auto isFake = [](const Entry &e) {
+		return e.gift.manageId.isUser()
+			&& e.gift.manageId.userMessageId().bare >= kFakeBase;
+	};
+	auto &list = *_list;
+	const auto before = int(list.size());
+	list.erase(ranges::remove_if(list, isFake), end(list));
+	auto fakes = Damza::Plugins::SelfProfileGifts(_peer);
+	for (auto i = fakes.rbegin(); i != fakes.rend(); ++i) {
+		auto descriptor = DescriptorForGift(_peer, *i);
+		list.insert(begin(list), Entry{
+			.gift = std::move(*i),
+			.descriptor = std::move(descriptor),
+		});
+	}
+	const auto delta = int(list.size()) - before;
+	if (delta != 0) {
+		_entries->total = std::max(0, _entries->total + delta);
+		refreshButtons();
+		refreshAbout();
 	}
 }
 
