@@ -91,6 +91,9 @@ dzg.messages.onBeforeSend((ctx) => {
 });
 
 sync();
+// Сессия может подняться позже плагина, а аккаунтов может быть несколько:
+// подарки и localBuy заново применяются, когда сессия готова.
+dzg.on('session.ready', () => { sync(); });
 
 dzg.on('unload', () => {
   dzg.gifts.localBuy(false);

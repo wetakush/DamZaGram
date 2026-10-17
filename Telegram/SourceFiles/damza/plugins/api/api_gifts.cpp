@@ -39,9 +39,12 @@ namespace {
 struct SessionGifts {
 	std::vector<Data::SavedStarGift> list;
 	std::vector<QString> slugs; // parallel to list, for de-dup and remove
-	bool localBuy = false;
 };
 base::flat_map<not_null<Main::Session*>, SessionGifts> GiftsBySession;
+
+// Plugins that turned on the local "buy". Global, not per session: plugins
+// can load before the session exists, and the user may send from any account.
+base::flat_set<QString> LocalBuyPlugins;
 rpl::event_stream<not_null<Main::Session*>> GiftsUpdated;
 
 // Fake, locally-unique manage ids so the entries don't collide with real ones.
@@ -192,11 +195,10 @@ rpl::producer<> ProfileGiftsUpdates(not_null<Main::Session*> session) {
 bool TryLocalBuyGift(
 		not_null<PeerData*> recipient,
 		const Data::StarGift &gift) {
-	const auto session = &recipient->session();
-	const auto i = GiftsBySession.find(session);
-	if (i == end(GiftsBySession) || !i->second.localBuy) {
+	if (LocalBuyPlugins.empty()) {
 		return false; // local buy off: let the real send run
 	}
+	const auto session = &recipient->session();
 	// Spend the (possibly faked) Stars balance locally, never hitting the
 	// server (so it works even with a real zero balance). A gift sent to
 	// yourself also lands on your own profile; sending to anyone else is a
@@ -330,10 +332,11 @@ DZG_API_MODULE({
 			}
 			return QVariant(result);
 		} });
-		out.push_back({ "gifts_setLocalBuy", [](const QVariantList &args) {
-			const auto session = Manager::Get().activeSession();
-			if (session) {
-				GiftsBySession[session].localBuy = args.value(0).toBool();
+		out.push_back({ "gifts_setLocalBuy", [=](const QVariantList &args) {
+			if (args.value(0).toBool()) {
+				LocalBuyPlugins.emplace(id);
+			} else {
+				LocalBuyPlugins.remove(id);
 			}
 			return QVariant();
 		} });
@@ -376,12 +379,12 @@ DZG_API_MODULE({
 	},
 	.pluginUnloaded = [](const QString &id) {
 		Intercepting.remove(id);
+		LocalBuyPlugins.remove(id);
 		// Drop the fake profile gifts so unloading the plugin clears the flex.
 		for (auto &[session, entry] : GiftsBySession) {
-			if (!entry.list.empty() || entry.localBuy) {
+			if (!entry.list.empty()) {
 				entry.list.clear();
 				entry.slugs.clear();
-				entry.localBuy = false;
 				NotifyChanged(session);
 			}
 		}
