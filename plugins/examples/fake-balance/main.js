@@ -155,6 +155,16 @@ dzg.on('wallet.changed', () => {
   if (enabled()) setTimeout(apply, 0);
   render();
 });
+// Локальная покупка (dzg.gifts.localBuy, плагин NFT Profile) тратит баланс:
+// уменьшаем и сохранённую подменную сумму, иначе сторож вернёт её обратно.
+dzg.on('gifts.spent', (e) => {
+  if (!e || !enabled()) return;
+  const key = e.currency === 'ton' ? 'ton' : 'stars';
+  if (!setting(key === 'ton' ? 'applyTon' : 'applyStars', true)) return;
+  const next = Math.max(0, (Number(setting(key, 0)) || 0) - (Number(e.amount) || 0));
+  dzg.settings.set(key, key === 'ton' ? Math.round(next * 1e9) / 1e9 : Math.round(next));
+  apply();
+});
 dzg.on('settings.changed', () => {
   if (enabled()) {
     apply();

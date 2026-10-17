@@ -8,6 +8,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "boxes/transfer_gift_box.h"
 
 #include "apiwrap.h"
+#include "damza/plugins/plugins.h"
 #include "api/api_cloud_password.h"
 #include "api/api_credits.h"
 #include "api/api_text_entities.h"
@@ -567,6 +568,22 @@ void BuyResaleGift(
 		std::shared_ptr<ChatHelpers::Show> show,
 		ResaleGiftPurchase purchase,
 		Fn<void(Payments::CheckoutResult)> done) {
+	// DamZaGram: with dzg.gifts.localBuy on, buy from the market locally —
+	// spend the local Stars/TON balance (no server form, so no BALANCE_TOO_LOW)
+	// and, for yourself, hang the gift on your own profile.
+	if (Damza::Plugins::TryLocalBuyResale(
+			purchase.recipient,
+			purchase.gift,
+			purchase.currency == CreditsType::Ton)) {
+		purchase.gift->starsForResale = 0;
+		done(Payments::CheckoutResult::Paid);
+		purchase.recipient->owner().notifyGiftUpdate({
+			.slug = purchase.slug,
+			.action = Data::GiftUpdate::Action::ResaleChange,
+		});
+		Ui::ShowResaleGiftBoughtToast(show, purchase.recipient, *purchase.gift);
+		return;
+	}
 	const auto invoice = InputInvoiceForResale(purchase);
 	const auto completed = std::make_shared<bool>(false);
 	auto paymentDone = [=](

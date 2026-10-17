@@ -23,6 +23,7 @@
 #include "data/data_peer.h"
 #include "data/data_session.h"
 #include "data/data_star_gift.h"
+#include "data/data_user.h"
 #include "history/view/controls/history_view_suggest_options.h"
 #include "main/main_session.h"
 #include "ui/layers/box_content.h"
@@ -80,6 +81,17 @@ int64 FakeManageCounter = 0;
 
 void NotifyChanged(not_null<Main::Session*> session) {
 	GiftsUpdated.fire(std::move(session));
+}
+
+// Tell plugins a local buy spent balance, so e.g. fake-balance lowers its
+// stored amount (otherwise its watchdog would restore the old balance).
+void EmitSpent(bool ton, CreditsAmount price) {
+	if (Manager::Exists()) {
+		Manager::Get().emitEventLater(u"gifts.spent"_q, QVariantMap{
+			{ u"currency"_q, ton ? u"ton"_q : u"stars"_q },
+			{ u"amount"_q, price.value() },
+		});
+	}
 }
 
 void AddGift(
@@ -206,9 +218,44 @@ bool TryLocalBuyGift(
 	auto &credits = session->credits();
 	const auto have = credits.balance().whole();
 	credits.apply(CreditsAmount(std::max<int64>(0, have - gift.stars)));
+	EmitSpent(false, CreditsAmount(gift.stars));
 	if (recipient->isSelf()) {
 		const auto slug = gift.unique ? gift.unique->slug : QString();
 		AddGift(session, gift, slug);
+	}
+	return true;
+}
+
+bool TryLocalBuyResale(
+		not_null<PeerData*> recipient,
+		const std::shared_ptr<Data::UniqueGift> &gift,
+		bool ton) {
+	if (LocalBuyPlugins.empty() || !gift) {
+		return false; // local buy off: let the real purchase run
+	}
+	const auto session = &recipient->session();
+	auto &credits = session->credits();
+	const auto type = ton ? CreditsType::Ton : CreditsType::Stars;
+	const auto price = ton
+		? Data::UniqueGiftResaleTon(*gift)
+		: Data::UniqueGiftResaleStars(*gift);
+	const auto have = ton ? credits.tonBalance() : credits.balance();
+	const auto zero = CreditsAmount(0, 0, type);
+	const auto left = have - price;
+	credits.apply((left < zero) ? zero : left);
+	EmitSpent(ton, price);
+	if (recipient->isSelf()) {
+		// Your copy: you are the owner now and it is off the market.
+		auto mine = std::make_shared<Data::UniqueGift>(*gift);
+		mine->ownerId = session->userPeerId();
+		mine->ownerName = session->user()->name();
+		mine->starsForResale = -1;
+		mine->nanoTonForResale = -1;
+		AddGift(session, Data::StarGift{
+			.id = gift->initialGiftId,
+			.unique = std::move(mine),
+			.document = gift->model.document,
+		}, gift->slug);
 	}
 	return true;
 }

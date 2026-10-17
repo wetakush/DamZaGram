@@ -105,4 +105,13 @@ void InjectCreditsHistory(
 	not_null<PeerData*> recipient,
 	const Data::StarGift &gift);
 
+// Local market (resale) buy of an NFT, same dzg.gifts.localBuy switch: spends
+// the local Stars or TON balance (never asks the server, so a real zero
+// balance is fine) and, when buying for yourself, hangs the gift on your own
+// profile with you as the owner. Returns true when it took over.
+[[nodiscard]] bool TryLocalBuyResale(
+	not_null<PeerData*> recipient,
+	const std::shared_ptr<Data::UniqueGift> &gift,
+	bool ton);
+
 } // namespace Damza::Plugins
