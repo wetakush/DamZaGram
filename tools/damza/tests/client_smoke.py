@@ -99,7 +99,10 @@ dzg.on('ready', () => {
                 assert result['boots'] == boot, result
                 states = {p['id']: p for p in result['plugins']}
                 for name in expected:
-                    assert states[name]['loaded'], states[name]
+                    assert states[name]['loaded'] and not states[name]['error'], states[name]
+                    source = ROOT / 'plugins/builtin' / name
+                    assert states[name]['version'] == json.loads((source / 'manifest.json').read_text())['version']
+                    assert (plugins / name / 'main.js').read_bytes() == (source / 'main.js').read_bytes()
                 for name in names[1:]:
                     assert not states[name]['loaded'] and states[name]['error'], states[name]
                 assert 'id changed' in states['reload-target']['error']
