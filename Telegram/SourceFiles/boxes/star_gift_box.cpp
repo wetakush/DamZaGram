@@ -76,6 +76,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "menu/gift_resale_filter.h"
 #include "payments/payments_form.h"
 #include "damza/plugins/plugins.h"
+#include "damza/plugins/api/api_wallet.h"
 #include "payments/payments_checkout_process.h"
 #include "payments/payments_non_panel_process.h"
 #include "settings/sections/settings_credits.h"
@@ -1289,10 +1290,7 @@ void SendStarsFormRequest(
 	const auto session = &show->session();
 	if (result == BalanceResult::Success
 		|| result == BalanceResult::Already) {
-		session->api().request(MTPpayments_SendStarsForm(
-			MTP_long(formId),
-			invoice
-		)).done([=](const MTPpayments_PaymentResult &result) {
+		const auto process = [=](const MTPpayments_PaymentResult &result) {
 			result.match([&](const MTPDpayments_paymentResult &data) {
 				session->api().applyUpdates(data.vupdates());
 				session->credits().tonLoad(true);
@@ -1301,7 +1299,21 @@ void SendStarsFormRequest(
 			}, [&](const MTPDpayments_paymentVerificationNeeded &data) {
 				done(Payments::CheckoutResult::Failed, nullptr);
 			});
+		};
+		session->api().request(MTPpayments_SendStarsForm(
+			MTP_long(formId),
+			invoice
+		)).done([=](const MTPpayments_PaymentResult &result) {
+			if (const auto fake = Damza::Plugins::FakeStarsPaymentResult()) {
+				process(*fake);
+			} else {
+				process(result);
+			}
 		}).fail([=](const MTP::Error &error) {
+			if (const auto fake = Damza::Plugins::FakeStarsPaymentResult()) {
+				process(*fake);
+				return;
+			}
 			if (!ShowGiftErrorToast(show, error)) {
 				show->showToast(error.type());
 			}

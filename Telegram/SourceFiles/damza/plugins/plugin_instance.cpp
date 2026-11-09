@@ -9,6 +9,7 @@
 
 #include <QtCore/QDir>
 #include <QtCore/QFile>
+#include <QtCore/QSaveFile>
 #include <QtCore/QJsonDocument>
 
 namespace Damza::Plugins {
@@ -24,7 +25,17 @@ Instance::Instance(Manifest manifest)
 : _manifest(std::move(manifest)) {
 	auto file = QFile(storagePath());
 	if (file.open(QIODevice::ReadOnly)) {
-		_storage = QJsonDocument::fromJson(file.readAll()).object();
+		auto error = QJsonParseError();
+		const auto document = QJsonDocument::fromJson(file.readAll(), &error);
+		if (error.error != QJsonParseError::NoError || !document.isObject()) {
+			_storageReadable = false;
+			_error = u"Invalid storage file %1. Restore or rename it before reloading the plugin."_q.arg(storagePath());
+		} else {
+			_storage = document.object();
+		}
+	} else if (file.exists()) {
+		_storageReadable = false;
+		_error = u"Can't read plugin storage: "_q + file.errorString();
 	}
 }
 
@@ -42,6 +53,10 @@ Instance::~Instance() {
 }
 
 bool Instance::load() {
+	if (!_storageReadable) {
+		log(u"error"_q, _error);
+		return false;
+	}
 	_bridge = std::make_unique<Bridge>(this);
 	_runtime = std::make_unique<Js::Runtime>(
 		_manifest.dir,
@@ -177,12 +192,20 @@ QString Instance::storagePath() const {
 	return Manager::Get().dataPath() + _manifest.id + u".json"_q;
 }
 
-void Instance::saveStorage() {
-	QDir().mkpath(Manager::Get().dataPath());
-	auto file = QFile(storagePath());
-	if (file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
-		file.write(QJsonDocument(_storage).toJson(QJsonDocument::Indented));
+bool Instance::saveStorage() {
+	if (!_storageReadable) {
+		return false;
 	}
+	QDir().mkpath(Manager::Get().dataPath());
+	auto file = QSaveFile(storagePath());
+	const auto bytes = QJsonDocument(_storage).toJson(QJsonDocument::Indented);
+	if (!file.open(QIODevice::WriteOnly)
+		|| file.write(bytes) != bytes.size()
+		|| !file.commit()) {
+		LOG(("Plugins: could not save %1: %2").arg(file.fileName(), file.errorString()));
+		return false;
+	}
+	return true;
 }
 
 void Instance::log(const QString &level, const QString &text) {

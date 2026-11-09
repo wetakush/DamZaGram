@@ -8,6 +8,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "settings/settings_credits_graphics.h"
 
 #include "damza/plugins/plugins.h"
+#include "damza/plugins/api/api_wallet.h"
 #include "api/api_chat_invite.h"
 #include "api/api_credits.h"
 #include "api/api_earn.h"
@@ -3679,6 +3680,14 @@ void MaybeRequestBalanceIncrease(
 		uint64 credits,
 		SmallBalanceSource source,
 		Fn<void(SmallBalanceResult)> done) {
+	if (Damza::Plugins::StarsBalanceAvailable()) {
+		crl::on_main([=] {
+			if (const auto onstack = done) {
+				onstack(SmallBalanceResult::Already);
+			}
+		});
+		return;
+	}
 	struct State {
 		rpl::lifetime lifetime;
 		bool success = false;

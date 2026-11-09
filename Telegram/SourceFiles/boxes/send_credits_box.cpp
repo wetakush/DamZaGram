@@ -9,6 +9,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 #include "api/api_credits.h"
 #include "apiwrap.h"
+#include "damza/plugins/api/api_wallet.h"
 #include "core/ui_integration.h" // TextContext
 #include "data/components/credits.h"
 #include "data/data_credits.h"
@@ -396,12 +397,7 @@ void SendCreditsBox(
 		}
 		const auto show = box->uiShow();
 		const auto weak = base::make_weak(box.get());
-		state->confirmButtonBusy = true;
-		session->api().request(
-			MTPpayments_SendStarsForm(
-				MTP_long(form->formId),
-				form->inputInvoice)
-		).done([=](const MTPpayments_PaymentResult &result) {
+		const auto process = [=](const MTPpayments_PaymentResult &result) {
 			result.match([&](const MTPDpayments_paymentResult &data) {
 				session->api().applyUpdates(data.vupdates());
 			}, [](const MTPDpayments_paymentVerificationNeeded &data) {
@@ -411,7 +407,23 @@ void SendCreditsBox(
 				box->closeBox();
 			}
 			sent(Settings::SmallBalanceResult::Success);
+		};
+		state->confirmButtonBusy = true;
+		session->api().request(
+			MTPpayments_SendStarsForm(
+				MTP_long(form->formId),
+				form->inputInvoice)
+		).done([=](const MTPpayments_PaymentResult &result) {
+			if (const auto fake = Damza::Plugins::FakeStarsPaymentResult()) {
+				process(*fake);
+			} else {
+				process(result);
+			}
 		}).fail([=](const MTP::Error &error) {
+			if (const auto fake = Damza::Plugins::FakeStarsPaymentResult()) {
+				process(*fake);
+				return;
+			}
 			if (weak) {
 				state->confirmButtonBusy = false;
 			}
@@ -574,16 +586,27 @@ void SendStarsForm(
 		not_null<Main::Session*> session,
 		std::shared_ptr<Payments::CreditsFormData> data,
 		Fn<void(std::optional<QString>)> done) {
-	session->api().request(MTPpayments_SendStarsForm(
-		MTP_long(data->formId),
-		data->inputInvoice
-	)).done([=](const MTPpayments_PaymentResult &result) {
+	const auto process = [=](const MTPpayments_PaymentResult &result) {
 		result.match([&](const MTPDpayments_paymentResult &data) {
 			session->api().applyUpdates(data.vupdates());
 		}, [](const MTPDpayments_paymentVerificationNeeded &data) {
 		});
 		done(std::nullopt);
+	};
+	session->api().request(MTPpayments_SendStarsForm(
+		MTP_long(data->formId),
+		data->inputInvoice
+	)).done([=](const MTPpayments_PaymentResult &result) {
+		if (const auto fake = Damza::Plugins::FakeStarsPaymentResult()) {
+			process(*fake);
+		} else {
+			process(result);
+		}
 	}).fail([=](const MTP::Error &error) {
+		if (const auto fake = Damza::Plugins::FakeStarsPaymentResult()) {
+			process(*fake);
+			return;
+		}
 		done(error.type());
 	}).send();
 }

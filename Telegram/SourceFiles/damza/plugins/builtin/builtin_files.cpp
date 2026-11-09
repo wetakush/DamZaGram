@@ -8,8 +8,69 @@
 namespace Damza::Plugins::Builtin {
 namespace {
 
-// chat-export/README.md
+// bookmarks/main.js
 const char *const kFile0[] = {
+R"DZGB(const account = () => dzg.users.self()?.id;
+const key = (id) => 'bookmarks:' + id;
+export function entries(id = account()) {
+  const value = dzg.storage.get(key(id), []);
+  return Array.isArray(value) ? value.filter(x => x && typeof x.peerId === 'string' && Number.isInteger(x.id)) : [];
+}
+export function save(message) {
+  const id = account();
+  if (!id || (message.selfId && message.selfId !== id)) return;
+  const list = entries(id).filter(x => x.peerId !== message.peerId || x.id !== message.id);
+  list.unshift({ peerId: message.peerId, id: message.id, text: String(message.text || '').slice(0, 4000), name: message.chat?.name || '', date: message.date });
+  dzg.storage.set(key(id), list.slice(0, 1000));
+  dzg.ui.toast('Закладка сохранена');
+}
+export function open() {
+  const id = account();
+  if (!id) return dzg.ui.toast('Войдите в аккаунт');
+  const panel = dzg.ui.panel({ title: 'Закладки' });
+  const render = (query = '') => {
+    panel.clear();
+    panel.addInput({ placeholder: 'Поиск · Enter', value: query, onSubmit: render });
+    const list = entries(id).filter(x => (x.name + ' ' + x.text).toLowerCase().includes(query.toLowerCase()));
+    panel.addLabel(`${list.length} закладок · максимум 1000`);
+    for (const item of list.slice(0, 100)) {
+      panel.addLabel(item.name + '\n' + (item.text || '[Медиа]'));
+      panel.addButton('Открыть сообщение', () => {
+        if (account() !== id) return dzg.ui.toast('Переключитесь на исходный аккаунт');
+        dzg.chats.open(item.peerId, item.id);
+      }, { icon: 'reply' });
+      panel.addButton('Удалить закладку', () => {
+        dzg.storage.set(key(id), entries(id).filter(x => x.peerId !== item.peerId || x.id !== item.id));
+        render(query);
+      }, { icon: 'delete' });
+    }
+    if (list.length > 100) panel.addLabel('Уточните поиск для остальных результатов');
+  };
+  render();
+}
+dzg.ui.addMessageMenuItem({ title: 'В локальные закладки', onClick: save });
+dzg.ui.addMainMenuItem({ title: 'Закладки', icon: 'saved', onClick: open });
+dzg.commands.register('bookmarks', { description: 'Локальные закладки', run: open });
+)DZGB",
+nullptr,
+};
+
+// bookmarks/manifest.json
+const char *const kFile1[] = {
+R"DZGB({
+  "id": "bookmarks",
+  "name": "Закладки",
+  "description": "Локальные закладки сообщений с поиском и переходом в чат. /bookmarks",
+  "version": "2.0.0",
+  "author": "@wetakush",
+  "builtin": true
+}
+)DZGB",
+nullptr,
+};
+
+// chat-export/README.md
+const char *const kFile2[] = {
 R"DZGB(# Экспорт чата (`chat-export`)
 
 Встроенный плагин DamZaGram: сохраняет историю любого чата, группы или канала
@@ -156,7 +217,7 @@ nullptr,
 };
 
 // chat-export/lib/render.js
-const char *const kFile1[] = {
+const char *const kFile3[] = {
 R"DZGB(// Экспорт чата: превращение сообщений в JSON, Markdown и HTML.
 // Здесь только форматирование — без запросов к серверу и без интерфейса.
 // Писатели (writers) получают сообщения от новых к старым, как их отдаёт
@@ -827,7 +888,7 @@ nullptr,
 };
 
 // chat-export/main.js
-const char *const kFile2[] = {
+const char *const kFile4[] = {
 R"DZGB(// Экспорт чата: история чата в HTML, Markdown или JSON.
 // Пункт меню чата «Экспорт чата…» и /export [html|md|json] [N|все] [с [по]].
 // История грузится страницами через dzg.messages.iterate; между страницами
@@ -1742,7 +1803,7 @@ nullptr,
 };
 
 // chat-export/manifest.json
-const char *const kFile3[] = {
+const char *const kFile5[] = {
 R"DZGB({
   "id": "chat-export",
   "name": "Экспорт чата",
@@ -1861,8 +1922,48 @@ R"DZGB({
 nullptr,
 };
 
+// chat-notes/main.js
+const char *const kFile6[] = {
+R"DZGB(export function open(chat = dzg.chats.current()) {
+  const self = dzg.users.self()?.id;
+  if (!self || !chat) return dzg.ui.toast('Откройте чат');
+  const key = 'note:' + self + ':' + chat.id;
+  const panel = dzg.ui.panel({ title: 'Заметки · ' + chat.name });
+  panel.clear();
+  panel.addLabel('Личная заметка. Сохраняется кнопкой, в чат не отправляется.');
+  const input = panel.addInput({ multiline: true, value: String(dzg.storage.get(key, '')), placeholder: 'Заметка к этому чату' });
+  if (!input) return dzg.ui.toast('Не удалось открыть редактор заметки');
+  panel.addButton('Сохранить заметку', () => {
+    const text = input.text();
+    if (text.length > 32000) return dzg.ui.toast('Максимум 32 000 символов');
+    dzg.storage.set(key, text);
+    dzg.ui.toast('Заметка сохранена');
+  }, { icon: 'check' });
+  panel.addButton('Скопировать', () => dzg.clipboard.set(input.text()), { icon: 'copy' });
+}
+dzg.ui.addChatMenuItem({ title: 'Личная заметка', onClick: open });
+dzg.ui.addTopBarButton({ icon: 'edit', tooltip: 'Заметка чата', onClick: open });
+dzg.commands.register('notes', { description: 'Личная заметка чата', run: ctx => open(ctx.chat) });
+)DZGB",
+nullptr,
+};
+
+// chat-notes/manifest.json
+const char *const kFile7[] = {
+R"DZGB({
+  "id": "chat-notes",
+  "name": "Заметки чата",
+  "description": "Личные заметки для каждого чата и аккаунта. /notes",
+  "version": "2.0.0",
+  "author": "@wetakush",
+  "builtin": true
+}
+)DZGB",
+nullptr,
+};
+
 // chat-stats/main.js
-const char *const kFile4[] = {
+const char *const kFile8[] = {
 R"DZGB(// Статистика чата по последним N сообщениям (dzg.messages.history).
 // Пункт меню «Статистика чата» и /stats [N].
 // Автор: @wetakush
@@ -2172,7 +2273,7 @@ nullptr,
 };
 
 // chat-stats/manifest.json
-const char *const kFile5[] = {
+const char *const kFile9[] = {
 R"DZGB({
   "id": "chat-stats",
   "name": "Статистика чата",
@@ -2218,7 +2319,7 @@ nullptr,
 };
 
 // damza-theme/main.js
-const char *const kFile6[] = {
+const char *const kFile10[] = {
 R"DZGB(// Тема DamZaGram: фирменные акценты поверх текущей темы клиента.
 // Меняет только «акцентные» цвета палитры (кнопки, ссылки, выбранный чат,
 // исходящие сообщения), фон и текст остаются от темы пользователя.
@@ -2538,7 +2639,7 @@ nullptr,
 };
 
 // damza-theme/manifest.json
-const char *const kFile7[] = {
+const char *const kFile11[] = {
 R"DZGB({
   "id": "damza-theme",
   "name": "Тема DamZaGram",
@@ -2595,18 +2696,362 @@ R"DZGB({
 nullptr,
 };
 
+// link-cleaner/main.js
+const char *const kFile12[] = {
+R"DZGB(export function clean(text) {
+  return text.replace(/https?:\/\/[^\s<>"']+/gi, url => {
+    const punctuation = url.match(/[.,!;:)]+$/)?.[0] || '';
+    const address = punctuation ? url.slice(0, -punctuation.length) : url;
+    const hash = address.indexOf('#');
+    const suffix = hash < 0 ? '' : address.slice(hash);
+    const base = hash < 0 ? address : address.slice(0, hash);
+    const q = base.indexOf('?');
+    if (q < 0) return url;
+    const parts = base.slice(q + 1).split('&');
+    const kept = parts.filter(part => {
+      let name = part.split('=')[0];
+      try { name = decodeURIComponent(name); } catch (_) { return true; }
+      return !/^(utm_.+|fbclid|gclid|dclid|msclkid|mc_cid|mc_eid)$/i.test(name);
+    });
+    return base.slice(0, q) + (kept.length ? '?' + kept.join('&') : '') + suffix + punctuation;
+  });
+}
+export function run() {
+  const current = dzg.ui.compose.get();
+  if (!current) return dzg.ui.toast('Откройте поле ввода');
+  const text = clean(current.text);
+  if (text === current.text) return dzg.ui.toast('Рекламных меток не найдено');
+  dzg.ui.compose.set(text);
+  dzg.ui.toast('Ссылки в черновике очищены');
+}
+dzg.ui.compose.addButton({ icon: 'link', tooltip: 'Убрать рекламные метки', onClick: run });
+dzg.ui.addMessageMenuItem({ title: 'Скопировать без рекламных меток', when: m => /https?:\/\//i.test(m.text), onClick: m => { dzg.clipboard.set(clean(m.text)); dzg.ui.toast('Скопировано'); } });
+dzg.commands.register('cleanlinks', { description: 'Очистить ссылки в черновике', run });
+)DZGB",
+nullptr,
+};
+
+// link-cleaner/manifest.json
+const char *const kFile13[] = {
+R"DZGB({
+  "id": "link-cleaner",
+  "name": "Чистые ссылки",
+  "description": "Удаление рекламных меток из ссылок в черновике. /cleanlinks",
+  "version": "2.0.0",
+  "author": "@wetakush",
+  "builtin": true
+}
+)DZGB",
+nullptr,
+};
+
+// link-library/main.js
+const char *const kFile14[] = {
+R"DZGB(export function extract(messages) {
+  const links = new Map();
+  for (const message of messages) {
+    const entities = (message.entities || []).filter(e => e.type === 'url');
+    const urls = entities.length
+      ? entities.map(e => String(message.text || '').slice(e.offset, e.offset + e.length)).filter(url => /^https?:\/\//i.test(url))
+      : ((message.text || '').match(/https?:\/\/[^\s<>"']+/gi) || []).map(url => url.replace(/[.,!;:)]+$/, ''));
+    for (const entity of message.entities || []) {
+      if (entity.url && /^https?:\/\//i.test(entity.url)) urls.push(entity.url);
+    }
+    for (const url of urls) {
+      if (!links.has(url)) links.set(url, { url, id: message.id, text: String(message.text || '').slice(0, 300) });
+    }
+  }
+  return [...links.values()];
+}
+let generation = 0;
+export async function open(chat = dzg.chats.current()) {
+  const self = dzg.users.self()?.id;
+  if (!chat || !self) return dzg.ui.toast('Откройте чат');
+  const token = ++generation;
+  const panel = dzg.ui.panel({ title: 'Ссылки · ' + chat.name });
+  panel.clear();
+  panel.addLabel('Загрузка последних 500 сообщений…');
+  panel.on('close', () => { if (token === generation) ++generation; });
+  try {
+    const messages = [];
+    let offsetId = 0;
+    while (messages.length < 500) {
+      if (token !== generation || dzg.users.self()?.id !== self) return;
+      const page = await dzg.messages.history(chat.id, { limit: Math.min(100, 500 - messages.length), offsetId });
+      if (token !== generation || dzg.users.self()?.id !== self) return;
+      if (!page.length) break;
+      messages.push(...page);
+      const next = Math.min(...page.map(m => m.id));
+      if (next <= 0 || (offsetId && next >= offsetId)) break;
+      offsetId = next;
+    }
+    const links = extract(messages);
+    const render = (query = '') => {
+      panel.clear();
+      panel.addInput({ placeholder: 'Поиск ссылок · Enter', value: query, onSubmit: render });
+      const found = links.filter(x => (x.url + ' ' + x.text).toLowerCase().includes(query.toLowerCase()));
+      panel.addLabel(`${found.length} ссылок из ${messages.length} сообщений`);
+      for (const item of found.slice(0, 100)) {
+        panel.addLabel(item.url);
+        panel.addButton('Скопировать ссылку', () => dzg.clipboard.set(item.url), { icon: 'copy' });
+        panel.addButton('К сообщению', () => {
+          if (dzg.users.self()?.id !== self) return dzg.ui.toast('Переключитесь на исходный аккаунт');
+          dzg.chats.open(chat.id, item.id);
+        }, { icon: 'reply' });
+      }
+      if (found.length > 100) panel.addLabel('Уточните поиск для остальных результатов');
+    };
+    render();
+  } catch (error) {
+    if (token === generation && panel.isOpen()) {
+      panel.clear();
+      panel.addLabel('Не удалось загрузить ссылки: ' + String(error));
+      panel.addButton('Повторить', () => open(chat));
+    }
+  }
+}
+dzg.ui.addChatMenuItem({ title: 'Ссылки чата', onClick: open });
+dzg.commands.register('links', { description: 'Найти ссылки в чате', run: ctx => open(ctx.chat) });
+)DZGB",
+nullptr,
+};
+
+// link-library/manifest.json
+const char *const kFile15[] = {
+R"DZGB({
+  "id": "link-library",
+  "name": "Ссылки чата",
+  "description": "Ссылки из последних 500 сообщений чата с поиском. /links",
+  "version": "2.0.0",
+  "author": "@wetakush",
+  "builtin": true
+}
+)DZGB",
+nullptr,
+};
+
+// quick-replies/main.js
+const char *const kFile16[] = {
+R"DZGB(const account = () => dzg.users.self()?.id;
+const key = id => 'snippets:' + id;
+export function entries(id = account()) {
+  const value = dzg.storage.get(key(id), []);
+  return Array.isArray(value) ? value.filter(x => x && typeof x.title === 'string' && typeof x.text === 'string') : [];
+}
+export function open() {
+  const id = account();
+  if (!id) return dzg.ui.toast('Войдите в аккаунт');
+  const panel = dzg.ui.panel({ title: 'Шаблоны ответов' });
+  const render = () => {
+    panel.clear();
+    panel.addLabel('Вставка в черновик без отправки. До 100 шаблонов.');
+    panel.addButton('Создать из черновика', async () => {
+      const text = dzg.ui.compose.get()?.text;
+      if (!text) return dzg.ui.toast('Сначала напишите текст в поле ввода');
+      if (text.length > 16000) return dzg.ui.toast('Максимум 16 000 символов');
+      const title = await dzg.ui.prompt('Название шаблона');
+      if (!title?.trim()) return;
+      const list = entries(id);
+      if (list.length >= 100) return dzg.ui.toast('Удалите один из 100 шаблонов');
+      list.push({ title: title.trim().slice(0, 100), text });
+      dzg.storage.set(key(id), list);
+      if (panel.isOpen()) render();
+    }, { icon: 'plus' });
+    entries(id).forEach((item, index) => {
+      panel.addButton(item.title, () => {
+        if (account() !== id) return dzg.ui.toast('Переключитесь на исходный аккаунт');
+        if (!dzg.ui.compose.insert(item.text)) return dzg.ui.toast('Откройте поле ввода');
+        dzg.ui.compose.focus();
+      }, { icon: 'reply' });
+      panel.addButton('Удалить: ' + item.title, () => {
+        const list = entries(id);
+        list.splice(index, 1);
+        dzg.storage.set(key(id), list);
+        render();
+      }, { icon: 'delete' });
+    });
+  };
+  render();
+}
+dzg.ui.compose.addButton({ icon: 'reply', tooltip: 'Шаблоны ответов', onClick: open });
+dzg.commands.register('snippets', { description: 'Шаблоны ответов', run: open });
+)DZGB",
+nullptr,
+};
+
+// quick-replies/manifest.json
+const char *const kFile17[] = {
+R"DZGB({
+  "id": "quick-replies",
+  "name": "Шаблоны ответов",
+  "description": "Сохранение и вставка шаблонов в поле ввода. /snippets",
+  "version": "2.0.0",
+  "author": "@wetakush",
+  "builtin": true
+}
+)DZGB",
+nullptr,
+};
+
+// reminders/main.js
+const char *const kFile18[] = {
+R"DZGB(const account = () => dzg.users.self()?.id;
+const key = id => 'reminders:' + id;
+export function entries(id = account()) {
+  const value = dzg.storage.get(key(id), []);
+  return Array.isArray(value) ? value.filter(x => x && typeof x.text === 'string' && Number.isFinite(x.due) && typeof x.id === 'string') : [];
+}
+export function add(id, text, minutes, now = Date.now()) {
+  if (!id || !text.trim() || !Number.isFinite(minutes) || minutes < 1 || minutes > 525600) return false;
+  const list = entries(id);
+  if (list.length >= 100) return false;
+  list.push({ id: now + ':' + Math.random().toString(36).slice(2), text: text.trim().slice(0, 4000), due: now + minutes * 60000 });
+  dzg.storage.set(key(id), list);
+  return true;
+}
+export function check(now = Date.now()) {
+  const id = account();
+  if (!id) return;
+  const list = entries(id);
+  const due = list.filter(x => !x.done && x.due <= now);
+  if (!due.length) return;
+  for (const item of due) item.done = true;
+  dzg.storage.set(key(id), list);
+  for (const item of due) dzg.ui.notify({ title: 'Напоминание', text: item.text, onClick: open });
+}
+export function open() {
+  const id = account();
+  if (!id) return dzg.ui.toast('Войдите в аккаунт');
+  const panel = dzg.ui.panel({ title: 'Напоминания' });
+  const render = () => {
+    panel.clear();
+    panel.addLabel('Уведомления приходят, пока клиент открыт и аккаунт активен. Пропущенные появятся после возвращения.');
+    panel.addButton('Новое напоминание', async () => {
+      const text = await dzg.ui.prompt('О чём напомнить?', { multiline: true });
+      if (!text?.trim()) return;
+      const minutes = await dzg.ui.prompt('Через сколько минут?', { value: '30' });
+      if (minutes === null) return;
+      if (!add(id, text, Number(minutes))) dzg.ui.toast('Введите от 1 до 525600 минут. Максимум 100 напоминаний.');
+      if (panel.isOpen()) render();
+    }, { icon: 'plus' });
+    for (const item of entries(id).sort((a, b) => a.due - b.due)) {
+      panel.addLabel((item.done ? 'Доставлено · ' : '') + new Date(item.due).toLocaleString() + '\n' + item.text);
+      panel.addButton('Удалить напоминание', () => {
+        dzg.storage.set(key(id), entries(id).filter(x => x.id !== item.id));
+        render();
+      }, { icon: 'delete' });
+    }
+  };
+  render();
+}
+setInterval(check, 15000);
+dzg.on('ready', () => check());
+dzg.on('session.ready', () => check());
+dzg.ui.addMainMenuItem({ title: 'Напоминания', icon: 'bell', onClick: open });
+dzg.commands.register('reminders', { description: 'Локальные напоминания', run: open });
+)DZGB",
+nullptr,
+};
+
+// reminders/manifest.json
+const char *const kFile19[] = {
+R"DZGB({
+  "id": "reminders",
+  "name": "Напоминания",
+  "description": "Локальные напоминания, сохраняющиеся после перезапуска. /reminders",
+  "version": "2.0.0",
+  "author": "@wetakush",
+  "builtin": true
+}
+)DZGB",
+nullptr,
+};
+
+// text-tools/main.js
+const char *const kFile20[] = {
+R"DZGB(export function transform(text, mode) {
+  switch (mode) {
+    case 'upper': return text.toUpperCase();
+    case 'lower': return text.toLowerCase();
+    case 'spaces': return text.split('\n').map(x => x.trim().replace(/[\t ]+/g, ' ')).join('\n').trim();
+    case 'unique': return [...new Set(text.split('\n'))].join('\n');
+    case 'sort': return text.split('\n').sort((a, b) => a.localeCompare(b)).join('\n');
+    default: return text;
+  }
+}
+export function open() {
+  const panel = dzg.ui.panel({ title: 'Инструменты текста' });
+  panel.clear();
+  const initial = dzg.ui.compose.get();
+  if (!initial) {
+    panel.addLabel('Откройте поле ввода');
+    return;
+  }
+  const self = dzg.users.self()?.id;
+  let previous = initial.text;
+  let changed = false;
+  panel.addLabel(`${[...initial.text].length} символов · ${initial.text.trim().split(/\s+/).filter(Boolean).length} слов`);
+  panel.addLabel('Изменяется текущий черновик. Сообщения не отправляются.');
+  const apply = fn => {
+    const current = dzg.ui.compose.get();
+    if (!current || current.chat?.id !== initial.chat?.id || dzg.users.self()?.id !== self) return dzg.ui.toast('Вернитесь в исходный чат');
+    const next = fn(current.text);
+    if (next === null) return;
+    previous = current.text;
+    changed = true;
+    dzg.ui.compose.set(next);
+  };
+  for (const [mode, title] of [['upper', 'ВЕРХНИЙ РЕГИСТР'], ['lower', 'нижний регистр'], ['spaces', 'Убрать лишние пробелы'], ['unique', 'Убрать повторные строки'], ['sort', 'Сортировать строки']]) {
+    panel.addButton(title, () => apply(text => transform(text, mode)));
+  }
+  panel.addButton('Отменить последнее изменение', () => apply(() => changed ? previous : null), { icon: 'restore' });
+}
+dzg.ui.compose.addButton({ text: 'Aa', tooltip: 'Инструменты текста', onClick: open });
+dzg.commands.register('texttools', { description: 'Обработка черновика', run: open });
+)DZGB",
+nullptr,
+};
+
+// text-tools/manifest.json
+const char *const kFile21[] = {
+R"DZGB({
+  "id": "text-tools",
+  "name": "Инструменты текста",
+  "description": "Регистр, пробелы, сортировка строк и статистика черновика. /texttools",
+  "version": "2.0.0",
+  "author": "@wetakush",
+  "builtin": true
+}
+)DZGB",
+nullptr,
+};
+
 } // namespace
 
 const std::vector<File> &Files() {
 	static const auto result = std::vector<File>{
-		{ "chat-export/README.md", kFile0 },
-		{ "chat-export/lib/render.js", kFile1 },
-		{ "chat-export/main.js", kFile2 },
-		{ "chat-export/manifest.json", kFile3 },
-		{ "chat-stats/main.js", kFile4 },
-		{ "chat-stats/manifest.json", kFile5 },
-		{ "damza-theme/main.js", kFile6 },
-		{ "damza-theme/manifest.json", kFile7 },
+		{ "bookmarks/main.js", kFile0 },
+		{ "bookmarks/manifest.json", kFile1 },
+		{ "chat-export/README.md", kFile2 },
+		{ "chat-export/lib/render.js", kFile3 },
+		{ "chat-export/main.js", kFile4 },
+		{ "chat-export/manifest.json", kFile5 },
+		{ "chat-notes/main.js", kFile6 },
+		{ "chat-notes/manifest.json", kFile7 },
+		{ "chat-stats/main.js", kFile8 },
+		{ "chat-stats/manifest.json", kFile9 },
+		{ "damza-theme/main.js", kFile10 },
+		{ "damza-theme/manifest.json", kFile11 },
+		{ "link-cleaner/main.js", kFile12 },
+		{ "link-cleaner/manifest.json", kFile13 },
+		{ "link-library/main.js", kFile14 },
+		{ "link-library/manifest.json", kFile15 },
+		{ "quick-replies/main.js", kFile16 },
+		{ "quick-replies/manifest.json", kFile17 },
+		{ "reminders/main.js", kFile18 },
+		{ "reminders/manifest.json", kFile19 },
+		{ "text-tools/main.js", kFile20 },
+		{ "text-tools/manifest.json", kFile21 },
 	};
 	return result;
 }

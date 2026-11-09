@@ -786,8 +786,10 @@ interface DzgStorage {
   /**
    * Значение должно сериализоваться в JSON. Циклическая ссылка сохранится
    * как null; слишком большое значение (около 4 млн элементов) — RangeError.
+   * Ошибка записи на диск бросает Error; старое значение сохраняется.
    */
   set(key: string, value: unknown): void;
+  /** При ошибке записи бросает Error, сохраняя старое значение. */
   remove(key: string): void;
   keys(): string[];
 }
@@ -900,12 +902,12 @@ interface Dzg {
    * реакций, статусов, «печатает…», непрочитанных, фокуса, поля ввода и
    * plugins.changed приходят на следующей итерации цикла событий; ready,
    * unload, session.ready, chat.opened, settings.changed и theme.changed —
-   * сразу. Каждый вызов обработчика должен уложиться в 3 секунды.
+)DZG_TYPES",
+R"DZG_TYPES(   * сразу. Каждый вызов обработчика должен уложиться в 3 секунды.
    */
   on<K extends keyof EventMap>(event: K, handler: (data: EventMap[K]) => void): () => void;
   off<K extends keyof EventMap>(event: K, handler: (data: EventMap[K]) => void): void;
-)DZG_TYPES",
-R"DZG_TYPES(  once<K extends keyof EventMap>(event: K, handler: (data: EventMap[K]) => void): () => void;
+  once<K extends keyof EventMap>(event: K, handler: (data: EventMap[K]) => void): () => void;
 
   log(...args: unknown[]): void;
   /**
@@ -1859,6 +1861,18 @@ interface DzgWallet {
   setLocal(values: { stars?: number; ton?: number }): boolean;
   /** Перезапросить настоящие балансы с сервера. */
   refresh(): boolean;
+  /**
+   * Считать баланс Stars достаточным для любой платёжной формы, не открывая
+   * окно пополнения. Работает, пока включён хотя бы у одного плагина.
+   */
+  forceStarsBalance(enable?: boolean): void;
+  /**
+   * После payments.sendStarsForm подменять ответ, verification required или
+   * ошибку локальным payments.paymentResult с пустым updates. Сам запрос
+   * отправляется на сервер как обычно. Работает, пока включён хотя бы у
+   * одного плагина; при выгрузке плагина его регистрация снимается.
+   */
+  spoofStarsForms(enable?: boolean): void;
   /**
    * Добавить фейковые записи в начало списка транзакций Stars (Настройки →
    * Звёзды). Только отображение у тебя; на сервере ничего нет. Пустой

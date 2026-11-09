@@ -191,8 +191,12 @@ QString Prelude() {
 				const value = native.storageGet(String(key));
 				return (value === undefined || value === null) ? fallback : value;
 			},
-			set(key, value) { native.storageSet(String(key), value); },
-			remove(key) { native.storageRemove(String(key)); },
+			set(key, value) {
+				if (native.storageSet(String(key), value) === false) throw new Error('Could not save plugin storage');
+			},
+			remove(key) {
+				if (native.storageRemove(String(key)) === false) throw new Error('Could not save plugin storage');
+			},
 			keys() { return native.storageKeys(); },
 		},
 

@@ -1,0 +1,15 @@
+import { transform, open } from '../../../../plugins/builtin/text-tools/main.js';
+const { eq } = sandbox;
+eq(transform('привет', 'upper'), 'ПРИВЕТ');
+eq(transform(' a  b \n c ', 'spaces'), 'a b\nc');
+eq(transform('b\na\nb', 'unique'), 'b\na');
+eq(transform('b\na', 'sort'), 'a\nb');
+mock.compose = { chat: mock.current, text: 'Привет' };
+open();
+mock.click(mock.lastPanel(), 'ВЕРХНИЙ');
+eq(mock.compose.text, 'ПРИВЕТ');
+mock.click(mock.lastPanel(), 'Отменить');
+eq(mock.compose.text, 'Привет');
+mock.compose.chat = mock.chats[1];
+mock.click(mock.lastPanel(), 'ВЕРХНИЙ');
+eq(mock.compose.text, 'Привет', 'other chat guarded');

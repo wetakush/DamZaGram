@@ -1,0 +1,8 @@
+{
+  "id": "reminders",
+  "name": "Напоминания",
+  "description": "Локальные напоминания, сохраняющиеся после перезапуска. /reminders",
+  "version": "2.0.0",
+  "author": "@wetakush",
+  "builtin": true
+}

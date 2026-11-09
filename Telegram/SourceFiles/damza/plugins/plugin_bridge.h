@@ -42,8 +42,8 @@ public:
 
 	// Storage and settings.
 	[[nodiscard]] QVariant storageGet(const QString &key) const;
-	void storageSet(const QString &key, const QVariant &value);
-	void storageRemove(const QString &key);
+	bool storageSet(const QString &key, const QVariant &value);
+	bool storageRemove(const QString &key);
 	[[nodiscard]] QStringList storageKeys() const;
 	[[nodiscard]] QVariantMap settings() const;
 	void setSetting(const QString &key, const QVariant &value);

@@ -1,0 +1,12 @@
+import { clean, run } from '../../../../plugins/builtin/link-cleaner/main.js';
+const { eq } = sandbox;
+eq(clean('https://example.org/?id=1&utm_source=x#part'), 'https://example.org/?id=1#part');
+eq(clean('https://example.org/?fbclid=x'), 'https://example.org/');
+eq(clean('https://example.org/?%75tm_source=x&token=a%26b'), 'https://example.org/?token=a%26b');
+eq(clean('https://example.org/?bad%=x'), 'https://example.org/?bad%=x');
+eq(clean('https://example.org/#utm_source=x'), 'https://example.org/#utm_source=x');
+eq(clean('Ссылка (https://example.org/?utm_source=x).'), 'Ссылка (https://example.org/).');
+mock.compose = { chat: mock.current, text: 'https://example.org/?gclid=x' };
+run();
+eq(mock.compose.text, 'https://example.org/');
+eq(mock.sent.length, 0);

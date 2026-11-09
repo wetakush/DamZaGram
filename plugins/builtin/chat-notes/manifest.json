@@ -1,0 +1,8 @@
+{
+  "id": "chat-notes",
+  "name": "Заметки чата",
+  "description": "Личные заметки для каждого чата и аккаунта. /notes",
+  "version": "2.0.0",
+  "author": "@wetakush",
+  "builtin": true
+}

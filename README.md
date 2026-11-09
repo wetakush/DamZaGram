@@ -62,7 +62,7 @@ Full documentation: [`docs/plugins`](docs/plugins).
 
 ### Built-in plugins
 
-Three plugins ship with the client and are on from the first start; turn any of them on or off and configure it in
+Ten plugins ship with the client and are on from the first start; turn any of them on or off and configure it in
 Settings → Plugins (or press `Ctrl+Shift+P` outside a text field).
 
 | Plugin | What it does |
@@ -70,6 +70,13 @@ Settings → Plugins (or press `Ctrl+Shift+P` outside a text field).
 | Chat export | A chat's history as a self-contained HTML page, Markdown or JSON, with progress and date ranges, `/export` |
 | Chat stats | Who writes the most, active hours and days, top words and emoji, `/stats` |
 | DamZaGram theme | Monolith / Glass / Rail accent presets on top of any theme, `/theme` |
+| Bookmarks | Local message bookmarks, search and jump to source, `/bookmarks` |
+| Chat notes | Private notes per chat and account, `/notes` |
+| Quick replies | Saved templates inserted into the draft without sending, `/snippets` |
+| Reminders | Persistent local reminders with overdue delivery, `/reminders` |
+| Link cleaner | Remove tracking parameters from draft links, `/cleanlinks` |
+| Link library | Search links from the last 500 chat messages, `/links` |
+| Text tools | Case, whitespace, unique/sorted lines and undo, `/texttools` |
 
 Built-in plugins that a newer client no longer ships are removed from `tdata/plugins/` on start (unless you removed
 `"builtin": true` from their manifest or the folder is a symlink).
@@ -79,8 +86,7 @@ What each plugin does in detail: [`docs/plugins/builtins.md`](docs/plugins/built
 
 ### What's new
 
-- Three built-in plugins instead of fourteen: Chat export, Chat stats and DamZaGram theme. On start the client removes
-  the built-ins it no longer ships; their data in `tdata/plugins_data/` stays.
+- Ten built-in plugins, account-separated personal data, and atomic plugin storage/settings writes.
 - Plugins moved to the first Settings page, right below DamZaGram Preferences.
 - Clicking a plugin file (`*.dzg.zip`, `*.dzg.js`, `*.plugin.js`) in a chat opens the install box; a file that isn't
   downloaded yet is downloaded first, and the box opens by itself when the download finishes.

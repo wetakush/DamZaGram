@@ -2,7 +2,7 @@
 """Embed docs/plugins/types/*.d.ts into the client, so "Create plugin" and
 the DevTools scratchpad can copy them next to plugins for VS Code hints.
 
-  tools/damza/embed_types.py
+  tools/damza/embed_types.py [--check]
 
 Writes Telegram/SourceFiles/damza/plugins/plugin_types_embedded.cpp.
 Re-run it whenever a file in docs/plugins/types/ changes. Every file is
@@ -75,8 +75,18 @@ def main():
         '} // namespace Damza::Plugins',
         '',
     ]
-    open(OUT, 'w', encoding='utf-8', newline='\n').write('\n'.join(out))
+    generated = '\n'.join(out)
+    existing = open(OUT, encoding='utf-8').read() if os.path.isfile(OUT) else None
+    if '--check' in sys.argv:
+        if existing != generated:
+            print('plugin_types_embedded.cpp is out of date', file=sys.stderr)
+            return 1
+        print('plugin_types_embedded.cpp is up to date')
+        return 0
+    if existing != generated:
+        open(OUT, 'w', encoding='utf-8', newline='\n').write(generated)
     print('embedded %d file(s) into %s' % (len(files), os.path.relpath(OUT, ROOT)))
+    return 0
 
 if __name__ == '__main__':
-    main()
+    sys.exit(main())

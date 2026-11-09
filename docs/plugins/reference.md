@@ -112,8 +112,8 @@
 Тип `DzgStorage`. Гайд: [guide/07-network-and-storage.md](guide/07-network-and-storage.md#хранилище-dzgstorage).
 
 - `get<T = unknown>(key: string, fallback?: T): T` — Значение по ключу или fallback.
-- `set(key: string, value: unknown): void` — Записать значение, сразу сохраняется на диск. Значение должно сериализоваться в JSON. Циклическая ссылка сохранится как null; слишком большое значение (около 4 млн элементов) — RangeError.
-- `remove(key: string): void` — Удалить ключ.
+- `set(key: string, value: unknown): void` — Записать значение, сразу сохраняется на диск. Значение должно сериализоваться в JSON. Циклическая ссылка сохранится как null; слишком большое значение (около 4 млн элементов) — RangeError. Ошибка записи на диск бросает Error; старое значение сохраняется.
+- `remove(key: string): void` — При ошибке записи бросает Error, сохраняя старое значение.
 - `keys(): string[]` — Все ключи.
 
 ## `dzg.settings`
@@ -346,6 +346,8 @@
 - `get(): WalletBalances | null` — Текущие балансы; null — нет активного аккаунта.
 - `setLocal(values: { stars?: number; ton?: number }): boolean` — Поменять баланс только в этом клиенте (визуально). На сервере ничего не меняется: следующее обновление с сервера или refresh() вернёт настоящий баланс, после него придёт 'wallet.changed'. Отрицательные и нечисловые значения — RangeError.
 - `refresh(): boolean` — Перезапросить настоящие балансы с сервера.
+- `forceStarsBalance(enable?: boolean): void` — Считать баланс Stars достаточным для любой платёжной формы, не открывая окно пополнения. Работает, пока включён хотя бы у одного плагина.
+- `spoofStarsForms(enable?: boolean): void` — После payments.sendStarsForm подменять ответ, verification required или ошибку локальным payments.paymentResult с пустым updates. Сам запрос отправляется на сервер как обычно. Работает, пока включён хотя бы у одного плагина; при выгрузке плагина его регистрация снимается.
 - `setHistory(entries: WalletHistoryEntry[]): number` — Добавить фейковые записи в начало списка транзакций Stars (Настройки → Звёзды). Только отображение у тебя; на сервере ничего нет. Пустой массив убирает записи. Возвращает число записей.
 
 ## `dzg.gifts`

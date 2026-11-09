@@ -1,0 +1,15 @@
+import { open } from '../../../../plugins/builtin/chat-notes/main.js';
+const { eq, assert } = sandbox;
+open();
+mock.type(mock.lastPanel(), 'Личная заметка');
+mock.click(mock.lastPanel(), 'Сохранить');
+open();
+eq(mock.input(mock.lastPanel()).text, 'Личная заметка');
+mock.type(mock.lastPanel(), 'x'.repeat(32001));
+mock.click(mock.lastPanel(), 'Сохранить');
+open();
+eq(mock.input(mock.lastPanel()).text, 'Личная заметка', 'oversize rejected');
+mock.self.id = 'other';
+open();
+eq(mock.input(mock.lastPanel()).text, '', 'account isolation');
+eq(mock.sent.length, 0, 'never sent');

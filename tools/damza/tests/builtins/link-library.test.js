@@ -1,0 +1,17 @@
+import { extract, open } from '../../../../plugins/builtin/link-library/main.js';
+const { eq, assert } = sandbox;
+eq(extract([{ id: 1, text: 'https://a.test https://a.test', entities: [{ url: 'https://b.test' }, { url: 'javascript:bad' }] }]).length, 2);
+eq(extract([{ id: 1, text: '(https://a.test).', entities: [{ type: 'url', offset: 1, length: 14 }] }])[0].url, 'https://a.test');
+mock.history[mock.current.id] = Array.from({ length: 220 }, (_, i) => mock.message({ id: i + 1, text: 'https://a.test/' + i }));
+await open();
+assert(mock.panelText().includes('220 ссылок из 220'), mock.panelText());
+mock.submit(mock.lastPanel(), '/219');
+assert(mock.panelText().includes('1 ссылок'));
+mock.click(mock.lastPanel(), 'Скопировать');
+eq(mock.clipboard, 'https://a.test/219');
+mock.self.id = 'other';
+mock.click(mock.lastPanel(), 'К сообщению');
+eq(mock.opened.length, 0);
+dzg.messages.history = () => Promise.reject(new Error('offline'));
+await open();
+assert(mock.panelText().includes('offline'));

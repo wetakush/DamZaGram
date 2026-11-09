@@ -210,6 +210,7 @@ DZG_API_MODULE({
 | `users` | `api/api_users.cpp` | `dzg.users`, `dzg.accounts`, `user.status` |
 | `ui` | `api/api_ui.cpp`, `plugins/ui/` | Кнопки, меню, горячие клавиши, уведомления, панели, подмена текста, `app.focus`, `compose.changed` |
 | `api` | `api/api_mtproto.cpp`, `plugins/tl/` | Сырой MTProto и обновления |
+| `wallet` | `api/api_wallet.cpp` | Локальный баланс Stars/TON, история Stars, перехват Stars-форм |
 | `plugins` | `api/api_plugins.cpp` | Управление плагинами, `plugins.changed`, `Ctrl+Shift+P` |
 | `builtin` | `api/api_builtin.cpp`, `plugins/builtin/` | Установка встроенных плагинов, `dzg.commands.all/run` |
 
@@ -235,6 +236,8 @@ DZG_API_MODULE({
 | `data/data_document_resolver.cpp` `ResolveDocument` | `PluginsUi::OpenPluginFile` (`*.dzg.zip`, `*.dzg.js`, `*.plugin.js` из чата) |
 | `api/api_updates.cpp` `Updates::handleSendActionUpdate` | `Plugins::ChatSendActionReceived` (`chat.typing`, `api/api_chats.h`) |
 | `api/api_updates.cpp` `Updates::feedUpdate`, `Updates::applyUpdates` | `Plugins::FeedRawUpdate(s)` (`dzg.api.onUpdate`, `api/api_mtproto.h`; без подписчиков — одна проверка флага) |
+| `settings/settings_credits_graphics.cpp` `MaybeRequestBalanceIncrease` | `Plugins::StarsBalanceAvailable` (`dzg.wallet.forceStarsBalance`) |
+| `boxes/star_gift_box.cpp`, `boxes/send_credits_box.cpp`, `api/api_chat_invite.cpp` | `Plugins::FakeStarsPaymentResult` после `payments.sendStarsForm` (`dzg.wallet.spoofStarsForms`) |
 | `history/view/history_view_top_bar_widget.cpp` `updateControlsVisibility`, `updateControlsGeometry` | `Plugins::UpdateTopBarButtons`, `Plugins::PlaceTopBarButtons` (`plugins/ui/ui_hooks.h`) |
 | `history/history_widget.cpp` конструктор, `updateFieldSize`, `moveFieldControls`; `history/view/controls/history_view_compose_controls.cpp` `init`, `updateControlsGeometry` | `Plugins::RegisterComposeField`, `ComposeButtonsWidth`, `PlaceComposeButtons` (`dzg.ui.compose`, `compose.changed`) |
 | `mainwindow.cpp` `MainWindow::updateControlsGeometry` | `Plugins::PlaceSidePanels` (`dzg.ui.panel`) |
@@ -258,6 +261,14 @@ id аккаунта, которому пришло сообщение, из `plu
   выгрузке). Удаление с данными (`UninstallPlugin(id, removeData)`)
   стирает и этот файл, и запись плагина в `_state.json`
   (`forgetPlugin`).
+- **Сохранность данных.** Storage и `_state.json` записываются атомарно
+  через `QSaveFile`. Ошибка `storage.set/remove` откатывает значение в
+  памяти и бросает JS `Error`. Повреждённый или недоступный storage
+  блокирует загрузку плагина и не перезаписывается при выгрузке.
+- **Проверка манифеста.** Перед каждым запуском менеджер заново читает
+  JSON-объект, проверяет `type` и относительный путь `main`. Смена `id`
+  требует обновления списка: hot reload сначала выгружает прежний ID,
+  затем показывает ошибку вместо запуска второго экземпляра.
 - **Id плагина** проверяется в `readManifest` (`IsValidPluginId`:
   `^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$`): id называет файлы в
   `plugins_data`, поэтому папка с плохим id пропускается с записью в лог.
@@ -314,6 +325,8 @@ id аккаунта, которому пришло сообщение, из `plu
 | `check.py file.cpp …` | Синтаксическая проверка C++ с настоящими флагами из `out/compile_commands.json` (`-fsyntax-only`). Новые файлы берут флаги `plugin_bridge.cpp`. Проверяй и `.cpp`, которые включают изменённый заголовок |
 | `sandbox.py main.js [test.js] [--script] [--setup=x.js]` | Запуск плагина без клиента: настоящая прелюдия и все JS-фрагменты модулей (вырезаются из `R"DZG_JS(…)DZG_JS"`) поверх мок-моста `sandbox_mock.js`. Нужен `out-qjs/qjs` |
 | `tests/*.test.js`, `tests/builtins/run.py` | Тесты модулей и встроенных плагинов в песочнице |
+| `tests/run.py --native --docs` | Общий запуск регрессий JS, генераторов, QuickJS, установщика, TL-кодека и документации |
+| `tests/client_smoke.py [--binary=…]` | Два запуска готового клиента с отдельными временными данными: десять встроенных плагинов, сохранение storage и отказ от повреждённых плагинов |
 | `tests/tl_codec_test.sh` | Отдельная сборка и тест TL-кодека (QtCore, без клиента) |
 | `tests/install_test.sh` | Тест установщика плагинов на заглушках |
 | `gen_tl.py` | Встраивает `api.tl`/`mtproto.tl` в `plugins/tl/tl_schema_data.cpp` и `tl_schema_layer.h`. Перезапускать после обновления схемы (устаревший слой ломает сборку `static_assert`) |

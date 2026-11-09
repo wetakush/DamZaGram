@@ -44,7 +44,7 @@ public:
 	[[nodiscard]] bool hasSendHook() const;
 
 	[[nodiscard]] QJsonObject &storage();
-	void saveStorage();
+	bool saveStorage();
 
 	void log(const QString &level, const QString &text);
 	[[nodiscard]] const QStringList &logLines() const;
@@ -64,6 +64,7 @@ private:
 	bool _unloading = false;
 	bool _loaded = false;
 	bool _closed = false;
+	bool _storageReadable = true;
 
 };
 

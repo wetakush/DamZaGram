@@ -6,6 +6,7 @@
 // the server (or refresh()) brings the real balance back. setHistory()
 // prepends fake entries to the Stars transactions list, locally only.
 #include "damza/plugins/plugin_api.h"
+#include "damza/plugins/api/api_wallet.h"
 #include "damza/plugins/plugins.h"
 
 #include "core/credits_amount.h"
@@ -25,6 +26,8 @@ namespace {
 
 // Fake transaction entries, kept per plugin so unload clears them.
 base::flat_map<QString, QVariantList> HistoryByPlugin;
+base::flat_set<QString> BalanceAvailablePlugins;
+base::flat_set<QString> StarsFormPlugins;
 
 [[nodiscard]] QVariantMap Balances(not_null<Main::Session*> session) {
 	auto &credits = session->credits();
@@ -73,6 +76,22 @@ base::flat_map<QString, QVariantList> HistoryByPlugin;
 }
 
 } // namespace
+
+bool StarsBalanceAvailable() {
+	return !BalanceAvailablePlugins.empty();
+}
+
+std::optional<MTPpayments_PaymentResult> FakeStarsPaymentResult() {
+	if (StarsFormPlugins.empty()) {
+		return std::nullopt;
+	}
+	return MTPpayments_PaymentResult(MTP_payments_paymentResult(MTP_updates(
+		MTP_vector<MTPUpdate>(),
+		MTP_vector<MTPUser>(),
+		MTP_vector<MTPChat>(),
+		MTP_int(0),
+		MTP_int(0))));
+}
 
 void InjectCreditsHistory(
 		not_null<Main::Session*> session,
@@ -145,6 +164,22 @@ DZG_API_MODULE({
 			}
 			return QVariant();
 		} });
+		out.push_back({ "wallet_forceStarsBalance", [=](const Args &args) {
+			if (args.value(0).toBool()) {
+				BalanceAvailablePlugins.emplace(id);
+			} else {
+				BalanceAvailablePlugins.remove(id);
+			}
+			return QVariant();
+		} });
+		out.push_back({ "wallet_spoofStarsForms", [=](const Args &args) {
+			if (args.value(0).toBool()) {
+				StarsFormPlugins.emplace(id);
+			} else {
+				StarsFormPlugins.remove(id);
+			}
+			return QVariant();
+		} });
 	},
 	.prelude = [] {
 		return QString::fromUtf8(R"DZG_JS(
@@ -165,6 +200,12 @@ DZG_API_MODULE({
 			return !!native.wallet_setLocal(payload);
 		},
 		refresh() { return !!native.wallet_refresh(); },
+		forceStarsBalance(enable) {
+			native.wallet_forceStarsBalance(enable !== false);
+		},
+		spoofStarsForms(enable) {
+			native.wallet_spoofStarsForms(enable !== false);
+		},
 		setHistory(entries) {
 			const list = (entries || []).map((e) => ({
 				id: e.id !== undefined ? String(e.id) : undefined,
@@ -204,6 +245,8 @@ DZG_API_MODULE({
 	},
 	.pluginUnloaded = [](const QString &id) {
 		HistoryByPlugin.remove(id);
+		BalanceAvailablePlugins.remove(id);
+		StarsFormPlugins.remove(id);
 	},
 });
 

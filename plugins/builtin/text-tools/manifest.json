@@ -1,0 +1,8 @@
+{
+  "id": "text-tools",
+  "name": "Инструменты текста",
+  "description": "Регистр, пробелы, сортировка строк и статистика черновика. /texttools",
+  "version": "2.0.0",
+  "author": "@wetakush",
+  "builtin": true
+}

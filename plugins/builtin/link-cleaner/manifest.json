@@ -1,0 +1,8 @@
+{
+  "id": "link-cleaner",
+  "name": "Чистые ссылки",
+  "description": "Удаление рекламных меток из ссылок в черновике. /cleanlinks",
+  "version": "2.0.0",
+  "author": "@wetakush",
+  "builtin": true
+}

@@ -30,6 +30,7 @@
 #include <QtCore/QCoreApplication>
 #include <QtCore/QDir>
 #include <QtCore/QFile>
+#include <QtCore/QSaveFile>
 #include <QtCore/QJsonDocument>
 #include <QtCore/QThread>
 #include <QtCore/QTimer>
@@ -156,9 +157,12 @@ void Manager::saveState() const {
 		{ u"devMode"_q, _devMode },
 	};
 	QDir().mkpath(dataPath());
-	auto file = QFile(dataPath() + u"_state.json"_q);
-	if (file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
-		file.write(QJsonDocument(root).toJson(QJsonDocument::Indented));
+	auto file = QSaveFile(dataPath() + u"_state.json"_q);
+	const auto bytes = QJsonDocument(root).toJson(QJsonDocument::Indented);
+	if (!file.open(QIODevice::WriteOnly)
+		|| file.write(bytes) != bytes.size()
+		|| !file.commit()) {
+		LOG(("Plugins: could not save %1: %2").arg(file.fileName(), file.errorString()));
 	}
 }
 
@@ -167,14 +171,18 @@ std::optional<Manifest> Manager::readManifest(
 		QString *error) const {
 	auto file = QFile(QDir(dir).filePath(u"manifest.json"_q));
 	if (!file.open(QIODevice::ReadOnly)) {
+		*error = u"Can't open manifest.json: "_q + file.errorString();
 		return std::nullopt;
 	}
 	auto parseError = QJsonParseError();
-	const auto root = QJsonDocument::fromJson(
+	const auto document = QJsonDocument::fromJson(
 		file.readAll(),
-		&parseError).object();
+		&parseError);
+	const auto root = document.object();
 	if (parseError.error != QJsonParseError::NoError) {
 		*error = u"manifest.json: "_q + parseError.errorString();
+	} else if (!document.isObject()) {
+		*error = u"manifest.json must contain an object."_q;
 	}
 	auto result = Manifest();
 	result.dir = dir;
@@ -190,6 +198,18 @@ std::optional<Manifest> Manager::readManifest(
 	result.description = root.value(u"description"_q).toString();
 	result.main = root.value(u"main"_q).toString(u"main.js"_q);
 	result.type = root.value(u"type"_q).toString(u"module"_q);
+	if (result.type != u"module"_q && result.type != u"script"_q) {
+		*error = u"manifest.json: type must be module or script."_q;
+	}
+	const auto main = QDir::cleanPath(result.main);
+	if (QDir::isAbsolutePath(main)
+		|| main == u".."_q
+		|| main.startsWith(u"../"_q)
+		|| result.main.contains('\\')
+		|| result.main.contains(':')
+		|| result.main.isEmpty()) {
+		*error = u"manifest.json: main must be a relative path inside the plugin."_q;
+	}
 	result.builtin = root.value(u"builtin"_q).toBool();
 	result.settings = root.value(u"settings"_q).toArray();
 	return result;
@@ -239,7 +259,9 @@ void Manager::refresh() {
 				const PluginState &state) {
 			return state.manifest.id;
 		});
-		if (i == end(scanned) || !same(i->manifest, old.manifest)) {
+		if (i == end(scanned)
+			|| !i->error.isEmpty()
+			|| !same(i->manifest, old.manifest)) {
 			unloadPlugin(old.manifest.id);
 		} else {
 			i->loaded = old.loaded;
@@ -280,6 +302,20 @@ void Manager::rescan() {
 void Manager::loadPlugin(PluginState &state) {
 	unloadPlugin(state.manifest.id);
 	state.error = QString();
+	const auto manifest = readManifest(state.manifest.dir, &state.error);
+	if (!manifest || !state.error.isEmpty()) {
+		state.loaded = false;
+		if (state.error.isEmpty()) {
+			state.error = u"Invalid plugin manifest."_q;
+		}
+		return;
+	}
+	if (manifest->id != state.manifest.id) {
+		state.error = u"Plugin id changed. Refresh the plugin list to load it."_q;
+		state.loaded = false;
+		return;
+	}
+	state.manifest = *manifest;
 	auto instance = std::make_unique<Instance>(state.manifest);
 	const auto raw = instance.get();
 	_instances.push_back(std::move(instance));
@@ -401,10 +437,6 @@ void Manager::reload(const QString &id) {
 	for (auto &state : _plugins) {
 		if (state.manifest.id != id) {
 			continue;
-		}
-		auto error = QString();
-		if (const auto manifest = readManifest(state.manifest.dir, &error)) {
-			state.manifest = *manifest;
 		}
 		if (state.enabled) {
 			loadPlugin(state);

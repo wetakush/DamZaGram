@@ -1,0 +1,37 @@
+{
+  "id": "stars-spoofer",
+  "name": "Stars Spoofer",
+  "version": "1.0.0",
+  "author": "@wetakush",
+  "description": "Локальная подмена отображаемого баланса Stars и результата payments.sendStarsForm. Запросы отправляются на сервер; подмена не отменяет реальные списания.",
+  "settings": [
+    {
+      "key": "enabled",
+      "type": "bool",
+      "title": "Включить подмену",
+      "default": true
+    },
+    {
+      "key": "stars",
+      "type": "number",
+      "title": "Баланс Stars",
+      "default": 999999,
+      "min": 0,
+      "max": 1000000000000000
+    },
+    {
+      "key": "infinite",
+      "type": "bool",
+      "title": "Infinite Balance",
+      "subtitle": "Восстанавливать заданное число после локальных списаний и обновлений с сервера",
+      "default": true
+    },
+    {
+      "key": "spoofPayments",
+      "type": "bool",
+      "title": "Подменять результат платёжной формы",
+      "subtitle": "Подменять результат в клиенте. Запрос отправляется на сервер и может списать реальные Stars.",
+      "default": true
+    }
+  ]
+}

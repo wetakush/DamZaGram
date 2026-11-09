@@ -1,0 +1,18 @@
+import { open, entries } from '../../../../plugins/builtin/quick-replies/main.js';
+const { eq } = sandbox;
+mock.compose = { chat: mock.current, text: 'Здравствуйте!' };
+mock.promptAnswers.push('Приветствие');
+open();
+mock.click(mock.lastPanel(), 'Создать');
+await mock.tick();
+eq(entries().length, 1);
+mock.compose.text = '';
+mock.click(mock.lastPanel(), 'Приветствие');
+eq(mock.compose.text, 'Здравствуйте!');
+eq(mock.sent.length, 0);
+mock.self.id = 'other';
+mock.click(mock.lastPanel(), 'Приветствие');
+eq(mock.compose.text, 'Здравствуйте!', 'foreign account cannot insert');
+mock.self.id = '1';
+mock.click(mock.lastPanel(), 'Удалить');
+eq(entries().length, 0);

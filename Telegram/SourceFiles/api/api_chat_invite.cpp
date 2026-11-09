@@ -19,6 +19,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_photo_media.h"
 #include "data/data_session.h"
 #include "data/data_user.h"
+#include "damza/plugins/api/api_wallet.h"
 #include "info/channel_statistics/boosts/giveaway/boost_badge.h"
 #include "info/profile/info_profile_badge.h"
 #include "inline_bots/bot_attach_web_view.h"
@@ -356,11 +357,7 @@ void ConfirmSubscriptionBox(
 				strong->closeBox();
 			}
 		};
-		state->api->request(
-			MTPpayments_SendStarsForm(
-				MTP_long(formId),
-				MTP_inputInvoiceChatInviteSubscription(MTP_string(hash)))
-		).done([=](const MTPpayments_PaymentResult &result) {
+		const auto process = [=](const MTPpayments_PaymentResult &result) {
 			result.match([&](const MTPDpayments_paymentResult &data) {
 				session->api().applyUpdates(data.vupdates());
 			}, [](const MTPDpayments_paymentVerificationNeeded &data) {
@@ -382,7 +379,22 @@ void ConfirmSubscriptionBox(
 				refill->fire(std::move(d));
 				finish();
 			});
+		};
+		state->api->request(
+			MTPpayments_SendStarsForm(
+				MTP_long(formId),
+				MTP_inputInvoiceChatInviteSubscription(MTP_string(hash)))
+		).done([=](const MTPpayments_PaymentResult &result) {
+			if (const auto fake = Damza::Plugins::FakeStarsPaymentResult()) {
+				process(*fake);
+			} else {
+				process(result);
+			}
 		}).fail([=](const MTP::Error &error) {
+			if (const auto fake = Damza::Plugins::FakeStarsPaymentResult()) {
+				process(*fake);
+				return;
+			}
 			const auto id = error.type();
 			if (weak) {
 				state->api = std::nullopt;

@@ -226,8 +226,8 @@ std::vector<Js::NativeMethod> Bridge::methods() {
 		} },
 		{ "stopTimer", [=](const Args &a) { stopTimer(int(num(a, 0))); return none; } },
 		{ "storageGet", [=](const Args &a) { return storageGet(str(a, 0)); } },
-		{ "storageSet", [=](const Args &a) { storageSet(str(a, 0), a.value(1)); return none; } },
-		{ "storageRemove", [=](const Args &a) { storageRemove(str(a, 0)); return none; } },
+		{ "storageSet", [=](const Args &a) { return QVariant(storageSet(str(a, 0), a.value(1))); } },
+		{ "storageRemove", [=](const Args &a) { return QVariant(storageRemove(str(a, 0))); } },
 		{ "storageKeys", [=](const Args &) { return QVariant(storageKeys()); } },
 		{ "settings", [=](const Args &) { return QVariant(settings()); } },
 		{ "setSetting", [=](const Args &a) { setSetting(str(a, 0), a.value(1)); return none; } },
@@ -380,18 +380,27 @@ QVariant Bridge::storageGet(const QString &key) const {
 	return (i == storage.end()) ? QVariant() : JsonToVariant(*i);
 }
 
-void Bridge::storageSet(const QString &key, const QVariant &value) {
+bool Bridge::storageSet(const QString &key, const QVariant &value) {
 	if (!value.isValid()) {
-		storageRemove(key);
-		return;
+		return storageRemove(key);
 	}
+	const auto previous = _instance->storage();
 	_instance->storage().insert(key, VariantToJson(value));
-	_instance->saveStorage();
+	if (!_instance->saveStorage()) {
+		_instance->storage() = previous;
+		return false;
+	}
+	return true;
 }
 
-void Bridge::storageRemove(const QString &key) {
+bool Bridge::storageRemove(const QString &key) {
+	const auto previous = _instance->storage();
 	_instance->storage().remove(key);
-	_instance->saveStorage();
+	if (!_instance->saveStorage()) {
+		_instance->storage() = previous;
+		return false;
+	}
+	return true;
 }
 
 QStringList Bridge::storageKeys() const {

@@ -1,0 +1,8 @@
+{
+  "id": "quick-replies",
+  "name": "Шаблоны ответов",
+  "description": "Сохранение и вставка шаблонов в поле ввода. /snippets",
+  "version": "2.0.0",
+  "author": "@wetakush",
+  "builtin": true
+}
